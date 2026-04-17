@@ -1,0 +1,518 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>秦宫文言探案·《过秦论》闯关</title>
+  <!-- Socket.IO 客户端 -->
+  <script src="/socket.io/socket.io.js"></script>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; font-family: "宋体", serif; }
+    body { background: #1a1a2e; color: #e8e8e8; min-height: 100vh; display: flex; justify-content: center; align-items: center; padding: 20px; }
+    .page { display: none; width: 100%; max-width: 700px; animation: fadeIn 0.5s ease; }
+    .page.active { display: block; }
+    @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+    .cover { text-align: center; border: 2px solid #d4af37; padding: 60px 30px; background: rgba(0,0,0,0.3); border-radius: 8px; }
+    .cover h1 { font-size: 36px; color: #d4af37; margin-bottom: 30px; letter-spacing: 4px; }
+    .cover .intro { font-size: 18px; line-height: 1.8; margin-bottom: 40px; text-align: left; }
+    .btn { background: #d4af37; color: #1a1a2e; border: none; padding: 12px 40px; font-size: 18px; font-weight: bold; border-radius: 4px; cursor: pointer; transition: all 0.3s; margin: 5px; }
+    .btn:hover { background: #f0c850; transform: scale(1.05); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
+    .level-intro { border: 2px solid #d4af37; padding: 50px 30px; background: rgba(0,0,0,0.3); border-radius: 8px; }
+    .level-intro h2 { color: #d4af37; font-size: 28px; margin-bottom: 30px; text-align: center; letter-spacing: 2px; }
+    .level-intro .desc { font-size: 18px; line-height: 1.8; margin-bottom: 40px; }
+    .level-intro .tip { color: #d4af37; font-weight: bold; margin-bottom: 30px; font-size: 16px; }
+    .question-card { border: 2px solid #d4af37; padding: 30px; border-radius: 8px; background: rgba(0,0,0,0.3); }
+    .question-card .level-tag { display: inline-block; background: #d4af37; color: #1a1a2e; padding: 4px 12px; border-radius: 4px; font-size: 14px; margin-bottom: 20px; font-weight: bold; }
+    .question-card .progress { text-align: right; color: #d4af37; font-size: 14px; margin-bottom: 15px; }
+    .question-card .stem { font-size: 20px; line-height: 1.6; margin-bottom: 30px; }
+    .options { display: flex; flex-direction: column; gap: 15px; }
+    .option-item { padding: 15px; border: 1px solid #444; border-radius: 4px; cursor: pointer; transition: all 0.2s; font-size: 17px; }
+    .option-item:hover:not(.disabled) { border-color: #d4af37; background: rgba(212, 175, 55, 0.1); }
+    .option-item.selected.correct { border-color: #28a745; background: rgba(40, 167, 69, 0.2); }
+    .option-item.selected.wrong { border-color: #dc3545; background: rgba(220, 53, 69, 0.2); }
+    .option-item.disabled { cursor: not-allowed; opacity: 0.7; }
+    .timer { text-align: center; font-size: 20px; color: #d4af37; margin-bottom: 20px; font-weight: bold; }
+    .result-card { text-align: center; border: 2px solid #d4af37; padding: 40px 20px; border-radius: 8px; background: rgba(0,0,0,0.3); margin-bottom: 30px; }
+    .result-card h2 { color: #d4af37; margin-bottom: 20px; }
+    .result-info { font-size: 20px; line-height: 2; margin-bottom: 30px; }
+    .rank-list { width: 100%; border-collapse: collapse; margin-top: 20px; }
+    .rank-list th, .rank-list td { border: 1px solid #d4af37; padding: 10px; text-align: center; }
+    .rank-list th { background: rgba(212, 175, 55, 0.2); color: #d4af37; }
+    .error-review { border: 2px solid #dc3545; padding: 25px; border-radius: 8px; background: rgba(220, 53, 69, 0.05); margin: 20px 0; }
+    .error-review h3 { color: #dc3545; margin-bottom: 20px; font-size: 22px; text-align: center; }
+    .error-item { border-bottom: 1px solid #444; padding: 15px 0; }
+    .error-level { color: #d4af37; font-weight: bold; margin-bottom: 8px; }
+    .error-stem { font-size: 17px; margin-bottom: 10px; line-height: 1.6; }
+    .error-user { color: #dc3545; margin-bottom: 5px; }
+    .error-answer { color: #28a745; margin-bottom: 5px; }
+    .error-analy { color: #ccc; font-size: 15px; margin-top: 8px; line-height: 1.5; }
+    .knowledge-map { border: 2px solid #d4af37; padding: 25px; border-radius: 8px; background: rgba(212, 175, 55, 0.05); margin: 20px 0; }
+    .knowledge-map h3 { color: #d4af37; margin-bottom: 20px; font-size: 22px; text-align: center; }
+    .know-item { margin: 15px 0; }
+    .know-name { font-size: 17px; margin-bottom: 8px; display: flex; justify-content: space-between; }
+    .know-bar { width: 100%; height: 12px; background: #333; border-radius: 6px; overflow: hidden; }
+    .know-progress { height: 100%; background: #d4af37; border-radius: 6px; }
+    .know-desc { font-size: 15px; color: #ccc; margin-top: 5px; }
+  </style>
+</head>
+<body>
+
+<audio id="audioCorrect" src="correct.mp3"></audio>
+<audio id="audioWrong" src="wrong.mp3"></audio>
+
+<!-- 封面页 -->
+<div id="coverPage" class="page active">
+  <div class="cover">
+    <h1>秦宫文言探案</h1>
+    <div class="intro">
+      崤函依旧，黄河东流；大秦曾横扫六合，却一夕崩塌。<br><br>
+      贾谊落笔《过秦论》，字字藏文言玄机，句句点兴亡关键。<br><br>
+      你将以文言侦探身份，闯入秦宫遗址，破解大秦灭亡密码。
+    </div>
+    <button class="btn" onclick="initExam()">开启探案</button>
+  </div>
+</div>
+
+<!-- 关卡介绍页 -->
+<div id="level1IntroPage" class="page">
+  <div class="level-intro">
+    <h2>关卡一 · 通假字密信破译</h2>
+    <div class="desc">秦臣传递机密用"通假字暗码"，暗码遍布《过秦论》卷宗之中。识破通假字，找出本字与释义。</div>
+    <div class="tip">本关共<span id="level1Count">0</span>题，选择后自动下一题</div>
+    <button class="btn" onclick="startExam()">开始破译</button>
+  </div>
+</div>
+
+<div id="level2IntroPage" class="page">
+  <div class="level-intro">
+    <h2>关卡二 · 古今异义时空陷阱</h2>
+    <div class="desc">千年时光流转，"山东""河""以致"含义天翻地覆。辨清古今异义，不坠秦宫迷阵。</div>
+    <div class="tip">本关共<span id="level2Count">0</span>题，选择后自动下一题</div>
+    <button class="btn" onclick="startExam()">继续闯关</button>
+  </div>
+</div>
+
+<div id="level3IntroPage" class="page">
+  <div class="level-intro">
+    <h2>关卡三 · 实词虚词机关阵</h2>
+    <div class="desc">"固、亡、制、之、而、以"是秦宫机关核心密码。破解实词含义与虚词用法，转动机关。</div>
+    <div class="tip">本关共<span id="level3Count">0</span>题，选择后自动下一题</div>
+    <button class="btn" onclick="startExam()">破解机关</button>
+  </div>
+</div>
+
+<div id="level4IntroPage" class="page">
+  <div class="level-intro">
+    <h2>关卡四 · 文言阵法暗道逃生</h2>
+    <div class="desc">词类活用、特殊句式是贾谊布下的最后文言兵法。辨清活用与句式，走出最终暗道。</div>
+    <div class="tip">本关共<span id="level4Count">0</span>题，完成即通关</div>
+    <button class="btn" onclick="startExam()">最终闯关</button>
+  </div>
+</div>
+
+<!-- 答题页 -->
+<div id="examPage" class="page">
+  <div class="timer">探案用时：<span id="timer">00:00</span></div>
+  <div class="question-card">
+    <div class="progress">当前进度：<span id="questionNum">1</span>/<span id="totalNum">5</span></div>
+    <span class="level-tag" id="levelTag"></span>
+    <div class="stem" id="questionStem"></div>
+    <div class="options" id="optionsContainer"></div>
+  </div>
+</div>
+
+<!-- 结果页 -->
+<div id="resultPage" class="page">
+  <div class="result-card">
+    <h2>探案完成！</h2>
+    <div class="result-info">
+      <p>最终谜底：秦以强亡，亡在不施仁义。</p>
+      <p>总答对：<span id="correctCount">0</span>/<span id="totalQuestions">10</span> 题</p>
+      <p>正确率：<span id="correctRate">0</span>%</p>
+      <p>总用时：<span id="useTime">0</span>秒</p>
+    </div>
+    <button class="btn" onclick="showErrorReview()">查看错误集锦</button>
+    <button class="btn" onclick="showKnowledgeMap()">查看知识点图谱</button>
+    <button class="btn" onclick="getRank()">查看排行榜</button>
+  </div>
+
+  <div id="errorReviewPage" style="display:none;" class="error-review">
+    <h3>📛 错误集锦</h3>
+    <div id="errorList"></div>
+    <div style="text-align:center; margin-top:20px;"><button class="btn" onclick="hideErrorReview()">返回</button></div>
+  </div>
+
+  <div id="knowledgeMapPage" style="display:none;" class="knowledge-map">
+    <h3>🧭 知识点掌握图谱</h3>
+    <div id="knowledgeList"></div>
+    <div style="text-align:center; margin-top:20px;"><button class="btn" onclick="hideKnowledgeMap()">返回</button></div>
+  </div>
+
+  <div id="rankContainer" style="display: none;">
+    <h3 style="text-align:center; color:#d4af37;">探案排行榜</h3>
+    <table class="rank-list"><thead><tr><th>排名</th><th>姓名</th><th>正确率</th><th>用时</th></tr></thead><tbody id="rankList"></tbody></table>
+    <div style="text-align:center; margin-top:30px;"><button class="btn" onclick="restart()">重新探案</button></div>
+  </div>
+</div>
+
+<script>
+  // ===================== Socket.IO 初始化 =====================
+  const socket = io();
+
+  // ===================== 题库（基于40题DOCX更新）=====================
+  const fullQuestionBank = {
+    level1: [ // 通假字
+      {level:"关卡一·通假字密信",stem:"下列各句中，不含通假字的一项是（）",options:["A. 合从缔交，相与为一","B. 秦无亡矢遗镞之费","C. 百有余年矣","D. 赢粮而景从"],answer:"B",analy:"A从通纵；C有通又；D景通影"},
+      {level:"关卡一·通假字密信",stem:"下列句子中，有通假字的一项是（）",options:["A. 振长策而御宇内","B. 序八州而朝同列","C. 信臣精卒陈利兵而谁何","D. 士不敢弯弓而抱怨"],answer:"C",analy:"C何通呵，喝问"},
+      {level:"关卡一·通假字密信",stem:"下列对句中通假字解释错误的一项是（）",options:["A. 从通纵，合纵","B. 景通影，像影子一样","C. 有通又，用于整数和零数之间","D. 何通呵，呵斥"],answer:"D",analy:"谁何的何通呵，是喝问，非呵斥"},
+      {level:"关卡一·通假字密信",stem:"下列句子，存在两个通假字的是（）",options:["A. 秦孝公据崤函之固","B. 锄耰棘矜，非铦于钩戟长铩也","C. 外连衡而斗诸侯","D. 天下云集响应"],answer:"C",analy:"衡通横，从通纵（约从离衡）"},
+      {level:"关卡一·通假字密信",stem:"下列句子中通假字对应关系不正确的是（）",options:["A. 衡——横","B. 倔——崛","C. 罢——疲","D. 振——震"],answer:"D",analy:"振长策的振是举起，非通假"},
+      {level:"关卡一·通假字密信",stem:"下列句子，没有通假现象的一项是（）",options:["A. 倔起阡陌之中","B. 非抗于九国之师也","C. 赢粮而景从","D. 百有余年矣"],answer:"B",analy:"A倔通崛；C景通影；D有通又"}
+    ],
+    level2: [ // 古今异义
+      {level:"关卡二·古今异义陷阱",stem:"下列句中加粗词古今意义相同的一项是（）",options:["A. 以致天下之士","B. 山东豪俊遂并起而亡秦族矣","C. 秦自缪公以来二十余君","D. 才能不及中人"],answer:"C",analy:"A古义来招致；B古义崤山以东；D古义平常人"},
+      {level:"关卡二·古今异义陷阱",stem:"下列'以为'古今异义的一项是（）",options:["A. 铸以为金人十二","B. 自以为关中之固","C. 若舍郑以为东道主","D. 医之好治不病以为功"],answer:"A",analy:"A古义把……做成；其余为认为"},
+      {level:"关卡二·古今异义陷阱",stem:"下列'山东'解释正确的一项是（）",options:["A. 现在的山东省","B. 崤山以东，泛指东方六国之地","C. 泰山以东","D. 华山以东"],answer:"B",analy:"山东古义指崤山以东"},
+      {level:"关卡二·古今异义陷阱",stem:"下列'以致'古义是（）",options:["A. 导致（贬义）","B. 来招纳、来招致","C. 以至于","D. 从而使"],answer:"B",analy:"以致天下之士，古义来招纳"},
+      {level:"关卡二·古今异义陷阱",stem:"下列'爱人'古义指（）",options:["A. 丈夫或妻子","B. 爱护人民、爱惜人才","C. 恋爱对象","D. 仁慈的人"],answer:"B",analy:"宽厚而爱人，古义爱护人民"},
+      {level:"关卡二·古今异义陷阱",stem:"下列'中人'古义指（）",options:["A. 中等地位的人","B. 平常的人、普通人","C. 中间人","D. 宦官"],answer:"B",analy:"才能不及中人，中人指平常人"},
+      {level:"关卡二·古今异义陷阱",stem:"下列加粗词不属于古今异义的一项是（）",options:["A. 国家无事","B. 赢粮而景从","C. 于是秦人拱手而取西河之外","D. 古之学者必有师"],answer:"B",analy:"赢粮而景从的赢是担负，古今同义（但景是通假）"}
+    ],
+    level3: [ // 实词虚词
+      {level:"关卡三·实词虚词机关阵",stem:"对'固'的含义解释正确的一项是（）",options:["A. 据崤函之固——坚决","B. 君臣固守以窥周室——坚固的地势","C. 临不测之渊，以为固——牢固地","D. 其闻道也固先乎吾——本来"],answer:"D",analy:"A险固地势；B牢固地；C险固的地方"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列句中'亡'字意思与其他三项不同的是（）",options:["A. 秦无亡矢遗镞之费","B. 追亡逐北，伏尸百万","C. 吞二周而亡诸侯","D. 从径道亡，归璧于赵"],answer:"B",analy:"B逃亡的人；其余为丢失/灭亡/逃跑"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'制'解释有误的一项是（）",options:["A. 履至尊而制六合——控制","B. 秦有余力而制其弊——制服","C. 增其旧制——规模","D. 其制稍异于前——制度"],answer:"D",analy:"D制为样式、规制"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'而'表转折关系的一项是（）",options:["A. 外连衡而斗诸侯","B. 一夫作难而七庙隳","C. 蟹六跪而二螯","D. 秦无亡矢遗镞之费，而天下诸侯已困矣"],answer:"D",analy:"D表转折，却"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'以'作介词'用、凭'的一项是（）",options:["A. 尝以十倍之地，百万之众","B. 焚百家之言，以愚黔首","C. 然秦以区区之地，致万乘之势","D. 皆以美于徐公"],answer:"A",analy:"A凭借；B来；C凭借（但语境不同）；D认为"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'于'表比较的一项是（）",options:["A. 非铦于钩戟长铩也","B. 青，取之于蓝","C. 不拘于时","D. 燕王欲结于君"],answer:"A",analy:"A比；B从；C被；D和"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'之'用法与其他不同的一项是（）",options:["A. 不爱珍器重宝肥饶之地","B. 宽厚而爱人，尊贤而重士","C. 有席卷天下，包举宇内，囊括四海之意","D. 商君佐之"],answer:"D",analy:"D代词；其余为助词的"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'因'解释为沿袭的一项是（）",options:["A. 因遗策","B. 因利乘便","C. 因宾客至蔺相如门谢罪","D. 因击沛公于坐"],answer:"A",analy:"A沿袭；B趁着；C通过；D趁机"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'然'表转折的一项是（）",options:["A. 然秦以区区之地","B. 沛公然其计","C. 豁然开朗","D. 然则诸侯之地有限"],answer:"A",analy:"A然而；B认为对；C……的样子；D既然这样"},
+      {level:"关卡三·实词虚词机关阵",stem:"下列'则'表承接/就的一项是（）",options:["A. 小则获邑，大则得城","B. 则不可，因而刺杀之","C. 故木受绳则直","D. 于其身也，则耻师焉"],answer:"C",analy:"C就；A就（并列）；B如果；D却"}
+    ],
+    level4: [ // 词类活用与句式
+      {level:"关卡四·文言阵法暗道",stem:"下列句子没有名词作状语的一项是（）",options:["A. 天下云集响应","B. 赢粮而景从","C. 履至尊而制六合","D. 南取汉中，西举巴蜀"],answer:"C",analy:"C名词作动词，登上"},
+      {level:"关卡四·文言阵法暗道",stem:"下列属于使动用法的一项是（）",options:["A. 子孙帝王万世之业也","B. 序八州而朝同列","C. 且夫天下非小弱也","D. 尊贤而重士"],answer:"B",analy:"B使……朝拜"},
+      {level:"关卡四·文言阵法暗道",stem:"下列'小弱'用法判断正确的是（）",options:["A. 形容词作动词，变小变弱","B. 形容词作名词，弱小的国家","C. 名词作动词，削弱","D. 使动用法，使……弱小"],answer:"A",analy:"小弱，形容词作动词"},
+      {level:"关卡四·文言阵法暗道",stem:"下列属于名词作动词的一项是（）",options:["A. 有席卷天下之意","B. 瓮牖绳枢之子","C. 外连衡而斗诸侯","D. 以愚黔首"],answer:"B",analy:"B用瓮做、用绳系"},
+      {level:"关卡四·文言阵法暗道",stem:"下列加粗词活用类型与其他三项不同的是（）",options:["A. 追亡逐北","B. 尊贤而重士","C. 因利乘便","D. 积善成德"],answer:"A",analy:"A动词作名词；其余形容词作名词"},
+      {level:"关卡四·文言阵法暗道",stem:"下列属于判断句的一项是（）",options:["A. 然陈涉瓮牖绳枢之子，氓隶之人，而迁徙之徒也","B. 为天下笑者","C. 铸以为金人十二","D. 谪戍之众，非抗于九国之师也"],answer:"A",analy:"A……也表判断"},
+      {level:"关卡四·文言阵法暗道",stem:"下列属于被动句的一项是（）",options:["A. 身死人手，为天下笑者","B. 仁义不施而攻守之势异也","C. 信臣精卒陈利兵而谁何","D. 金城千里，子孙帝王万世之业也"],answer:"A",analy:"A为表被动"},
+      {level:"关卡四·文言阵法暗道",stem:"下列属于状语后置句的一项是（）",options:["A. 非铦于钩戟长铩也","B. 仁义不施","C. 身死人手","D. 蹑足行伍之间"],answer:"A",analy:"A于钩戟长铩状语后置"}
+    ]
+  };
+
+  // ===================== 全局变量 =====================
+  let examConfig = {
+    currentLevel: 1,
+    currentQuestionIndex: 0,
+    levelQuestions: {},
+    userAnswers: {level1:[], level2:[], level3:[], level4:[]},
+    startTime: 0,
+    timerInterval: 0,
+    totalCorrect: 0,
+    errorList: []
+  };
+
+  let currentUserId = null;
+  const levelPageMap = {1:'level1IntroPage',2:'level2IntroPage',3:'level3IntroPage',4:'level4IntroPage'};
+  const levelNames = {level1:"通假字",level2:"古今异义",level3:"实词虚词",level4:"词类活用与句式"};
+  const TOTAL_QUESTIONS = 10;
+
+  // ===================== 实时监考上报 =====================
+  function reportStatusToTeacher() {
+    if (!currentUserId) return;
+    const lk = `level${examConfig.currentLevel}`;
+    const totalInLevel = examConfig.levelQuestions[lk]?.length || 0;
+    socket.emit('student-update', {
+      userId: currentUserId,
+      name: currentUserId,
+      currentLevel: examConfig.currentLevel,
+      currentQuestionIndex: examConfig.currentQuestionIndex,
+      totalCorrect: examConfig.totalCorrect,
+      totalQuestions: totalInLevel
+    });
+  }
+
+  // ===================== 工具函数 =====================
+  function switchPage(fromId, toId) {
+    document.getElementById(fromId).classList.remove('active');
+    document.getElementById(toId).classList.add('active');
+  }
+
+  function updateTimer() {
+    const elapsed = Math.floor((Date.now() - examConfig.startTime) / 1000);
+    const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+    const secs = String(elapsed % 60).padStart(2, '0');
+    document.getElementById('timer').textContent = `${mins}:${secs}`;
+  }
+
+  function saveProgressToServer() {
+    if (!currentUserId) return;
+    const progress = {
+      currentLevel: examConfig.currentLevel,
+      currentQuestionIndex: examConfig.currentQuestionIndex,
+      levelQuestions: examConfig.levelQuestions,
+      userAnswers: examConfig.userAnswers,
+      totalCorrect: examConfig.totalCorrect,
+      errorList: examConfig.errorList
+    };
+    fetch('/api/save-progress', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({userId: currentUserId, progress})
+    }).catch(err => console.warn('进度保存失败', err));
+  }
+
+  // ===================== 初始化 =====================
+  function initExam() {
+    const name = prompt('请输入你的姓名（用于保存进度和排行榜）：');
+    if (!name || name.trim() === '') { alert('必须输入姓名才能开始探案'); return; }
+    currentUserId = name.trim();
+
+    fetch(`/api/get-progress?userId=${encodeURIComponent(currentUserId)}`)
+      .then(res => res.json())
+      .then(savedProgress => {
+        if (savedProgress && savedProgress.currentLevel) {
+          let answeredCount = 0;
+          if (savedProgress.userAnswers) {
+            Object.values(savedProgress.userAnswers).forEach(arr => answeredCount += arr.length);
+          }
+          const correctCount = savedProgress.totalCorrect || 0;
+          const shouldResume = confirm(
+            `检测到 ${currentUserId} 有未完成的探案进度：\n` +
+            `已答题 ${answeredCount}/${TOTAL_QUESTIONS} 题，答对 ${correctCount} 题。\n是否继续？`
+          );
+          if (shouldResume) { restoreProgress(savedProgress); return; }
+        }
+        startNewExam();
+      })
+      .catch(err => { console.warn('获取进度失败', err); startNewExam(); });
+  }
+
+  function startNewExam() {
+    examConfig = {
+      currentLevel: 1, currentQuestionIndex: 0, levelQuestions: {},
+      userAnswers: {level1:[], level2:[], level3:[], level4:[]},
+      startTime: 0, timerInterval: 0, totalCorrect: 0, errorList: []
+    };
+
+    const perLevelCount = {level1: 2, level2: 3, level3: 3, level4: 2};
+    Object.keys(fullQuestionBank).forEach(level => {
+      let q = [...fullQuestionBank[level]];
+      q.sort(() => Math.random() - 0.5);
+      examConfig.levelQuestions[level] = q.slice(0, perLevelCount[level]);
+    });
+
+    document.getElementById('level1Count').textContent = perLevelCount.level1;
+    document.getElementById('level2Count').textContent = perLevelCount.level2;
+    document.getElementById('level3Count').textContent = perLevelCount.level3;
+    document.getElementById('level4Count').textContent = perLevelCount.level4;
+    document.getElementById('totalQuestions').textContent = TOTAL_QUESTIONS;
+
+    switchPage('coverPage', levelPageMap[1]);
+    saveProgressToServer();
+    reportStatusToTeacher();
+  }
+
+  function restoreProgress(progress) {
+    examConfig.currentLevel = progress.currentLevel;
+    examConfig.currentQuestionIndex = progress.currentQuestionIndex;
+    examConfig.levelQuestions = progress.levelQuestions;
+    examConfig.userAnswers = progress.userAnswers;
+    examConfig.totalCorrect = progress.totalCorrect;
+    examConfig.errorList = progress.errorList || [];
+
+    const perLevelCount = {};
+    Object.keys(examConfig.levelQuestions).forEach(lk => perLevelCount[lk] = examConfig.levelQuestions[lk].length);
+    document.getElementById('level1Count').textContent = perLevelCount.level1 || 0;
+    document.getElementById('level2Count').textContent = perLevelCount.level2 || 0;
+    document.getElementById('level3Count').textContent = perLevelCount.level3 || 0;
+    document.getElementById('level4Count').textContent = perLevelCount.level4 || 0;
+    document.getElementById('totalQuestions').textContent = TOTAL_QUESTIONS;
+
+    if (examConfig.currentLevel > 4) { finishExam(); return; }
+
+    examConfig.startTime = Date.now();
+    if (examConfig.timerInterval) clearInterval(examConfig.timerInterval);
+    examConfig.timerInterval = setInterval(updateTimer, 1000);
+
+    if (examConfig.currentQuestionIndex === 0) {
+      switchPage('coverPage', levelPageMap[examConfig.currentLevel]);
+    } else {
+      const lk = `level${examConfig.currentLevel}`;
+      renderQuestion(examConfig.levelQuestions[lk][examConfig.currentQuestionIndex]);
+      switchPage('coverPage', 'examPage');
+    }
+    reportStatusToTeacher();
+  }
+
+  function startExam() {
+    const lk = `level${examConfig.currentLevel}`;
+    if (examConfig.currentLevel === 1 && examConfig.currentQuestionIndex === 0) {
+      examConfig.startTime = Date.now();
+      examConfig.timerInterval = setInterval(updateTimer, 1000);
+    }
+    renderQuestion(examConfig.levelQuestions[lk][examConfig.currentQuestionIndex]);
+    switchPage(levelPageMap[examConfig.currentLevel], 'examPage');
+    saveProgressToServer();
+    reportStatusToTeacher();
+  }
+
+  function renderQuestion(q) {
+    const lk = `level${examConfig.currentLevel}`;
+    const total = examConfig.levelQuestions[lk].length;
+    const now = examConfig.currentQuestionIndex + 1;
+    document.getElementById('levelTag').textContent = q.level;
+    document.getElementById('questionStem').textContent = q.stem;
+    document.getElementById('questionNum').textContent = now;
+    document.getElementById('totalNum').textContent = total;
+
+    const oc = document.getElementById('optionsContainer');
+    oc.innerHTML = '';
+    q.options.forEach(opt => {
+      let div = document.createElement('div');
+      div.className = 'option-item';
+      div.dataset.option = opt[0];
+      div.textContent = opt;
+      div.addEventListener('click', () => selectOption(div, q, opt[0]));
+      oc.appendChild(div);
+    });
+  }
+
+  function selectOption(optDiv, q, selected) {
+    document.querySelectorAll('.option-item').forEach(o => o.classList.add('disabled'));
+    optDiv.classList.add('selected');
+    const isCorrect = (selected === q.answer);
+    if (isCorrect) {
+      optDiv.classList.add('correct');
+      examConfig.totalCorrect++;
+      document.getElementById('audioCorrect').play().catch(()=>{});
+    } else {
+      optDiv.classList.add('wrong');
+      document.querySelectorAll('.option-item').forEach(o => {
+        if (o.dataset.option === q.answer) o.classList.add('selected', 'correct');
+      });
+      document.getElementById('audioWrong').play().catch(()=>{});
+      examConfig.errorList.push({
+        level: q.level, stem: q.stem, user: selected, answer: q.answer, analy: q.analy
+      });
+    }
+    const lk = `level${examConfig.currentLevel}`;
+    examConfig.userAnswers[lk].push({q: q.stem, sel: selected, ans: q.answer, ok: isCorrect});
+    saveProgressToServer();
+    reportStatusToTeacher();
+    setTimeout(nextStep, 800);
+  }
+
+  function nextStep() {
+    const lk = `level${examConfig.currentLevel}`;
+    const total = examConfig.levelQuestions[lk].length;
+    examConfig.currentQuestionIndex++;
+    if (examConfig.currentQuestionIndex < total) {
+      renderQuestion(examConfig.levelQuestions[lk][examConfig.currentQuestionIndex]);
+      reportStatusToTeacher();
+      return;
+    }
+    examConfig.currentLevel++;
+    examConfig.currentQuestionIndex = 0;
+    if (examConfig.currentLevel <= 4) {
+      switchPage('examPage', levelPageMap[examConfig.currentLevel]);
+      saveProgressToServer();
+      reportStatusToTeacher();
+    } else {
+      finishExam();
+    }
+  }
+
+  function finishExam() {
+    clearInterval(examConfig.timerInterval);
+    const useTime = Math.floor((Date.now() - examConfig.startTime) / 1000);
+    const totalAnswered = Object.values(examConfig.userAnswers).flat().length;
+    const rate = totalAnswered > 0 ? Math.round((examConfig.totalCorrect / totalAnswered) * 100) : 0;
+
+    document.getElementById('correctCount').textContent = examConfig.totalCorrect;
+    document.getElementById('correctRate').textContent = rate;
+    document.getElementById('useTime').textContent = useTime;
+
+    if (currentUserId) {
+      fetch('/api/save-progress', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({userId: currentUserId, progress: null})
+      }).catch(()=>{});
+    }
+
+    fetch('/submit', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({name: currentUserId, rate, time: useTime})
+    });
+
+    socket.emit('student-complete', { userId: currentUserId });
+    switchPage('examPage', 'resultPage');
+  }
+
+  function showErrorReview() {
+    const el = document.getElementById('errorList'); el.innerHTML = '';
+    if (examConfig.errorList.length === 0) {
+      el.innerHTML = '<div style="text-align:center;">✅ 全部正确！</div>';
+    } else {
+      examConfig.errorList.forEach((e, i) => {
+        let div = document.createElement('div'); div.className = 'error-item';
+        div.innerHTML = `<div class="error-level">${e.level}</div><div class="error-stem">${i+1}. ${e.stem}</div><div class="error-user">你的答案：${e.user}</div><div class="error-answer">正确答案：${e.answer}</div><div class="error-analy">${e.analy}</div>`;
+        el.appendChild(div);
+      });
+    }
+    document.getElementById('errorReviewPage').style.display = 'block';
+    document.getElementById('knowledgeMapPage').style.display = 'none';
+  }
+  function hideErrorReview() { document.getElementById('errorReviewPage').style.display = 'none'; }
+
+  function showKnowledgeMap() {
+    const know = document.getElementById('knowledgeList'); know.innerHTML = '';
+    let stats = {};
+    Object.keys(examConfig.levelQuestions).forEach(lk => {
+      const total = examConfig.levelQuestions[lk].length;
+      let correct = 0;
+      if (examConfig.userAnswers[lk]) {
+        examConfig.userAnswers[lk].forEach(item => { if (item.ok) correct++; });
+      }
+      stats[lk] = {c: correct, t: total};
+    });
+
+    Object.keys(stats).forEach(lk => {
+      let s = stats[lk];
+      let p = s.t > 0 ? Math.round((s.c / s.t) * 100) : 0;
+      let div = document.createElement('div'); div.className = 'know-item';
+      div.innerHTML = `<div class="know-name"><span>${levelNames[lk]}</span><span>${s.c}/${s.t} (${p}%)</span></div><div class="know-bar"><div class="know-progress" style="width:${p}%"></div></div><div class="know-desc">${p>=80 ? '✅ 掌握良好' : '⚠️ 需要加强'}</div>`;
+      know.appendChild(div);
+    });
+    document.getElementById('knowledgeMapPage').style.display = 'block';
+    document.getElementById('errorReviewPage').style.display = 'none';
+  }
+  function hideKnowledgeMap() { document.getElementById('knowledgeMapPage').style.display = 'none'; }
+
+  function getRank() {
+    fetch('/rank').then(r => r.json()).then(data => {
+      const tbody = document.getElementById('rankList'); tbody.innerHTML = '';
+      data.forEach((item, idx) => {
+        let tr = document.createElement('tr');
+        tr.innerHTML = `<td>${idx+1}</td><td>${item.name}</td><td>${item.rate}%</td><td>${item.time}秒</td>`;
+        tbody.appendChild(tr);
+      });
+      document.getElementById('rankContainer').style.display = 'block';
+      document.getElementById('errorReviewPage').style.display = 'none';
+      document.getElementById('knowledgeMapPage').style.display = 'none';
+    });
+  }
+
+  function restart() {
+    document.getElementById('rankContainer').style.display = 'none';
+    hideErrorReview(); hideKnowledgeMap();
+    switchPage('resultPage', 'coverPage');
+  }
+</script>
+</body>
+</html>
